@@ -22,43 +22,17 @@ Only need a PHP server with version 7 minimum.
 
 ## Puesta en marcha
 
-Abrir el fichero SqlConnector.php y modificar los valores de los datos de conexión a la base de datos para que conecte.
+Open the SqlConnector.php file and modify the values of the connection data to the database so that it connects.
 
 ## Usage
 
-Tenemos diferentes métodos para comunicarnos con la base de datos:
-
-
-**getStringSelect**
-
-Obtiene una sentencia SQL formada por los campos del array que se pasa por parametro.
-
-El array debe contener dos claves: column y table. En código se detalla el uso.
-
-```php
-/**
-* Get a String SELECT sentence parsing array with key-value
-* @param $arrayAttr array with 'column' to contents fields to retrive and 'table' to know where search.
-* @return the SELECT sentence.
-*/       
-function getStringSelect($arrayAttr){
-    return "SELECT ".$arrayAttr['column']." FROM ".$arrayAttr['table']." ";
-}
-
-
-//Example
-$param = array('column'=>array('name','city'),'table'=>'client');
-$result = getStringSelect($param);
-/*Inspect 
-  // SELECT name,city FROM client;
-*/
-```
+We have different methods to communicate with the database:
 
 **selectSimpleResults**
 
-Obtiene los campos solicitados en una sentencia envueltos en un array asociativo. Solo captura la primera fila.
+Gets the fields requested in a statement wrapped in an associative array. Just capture the first row.
 
-Recomendado si sabemos con antelación que la consulta solo devuelve una fila.
+Recommended if we know in advance that the query only returns one row.
 
 ```php
 /**
@@ -78,7 +52,7 @@ $result = selectSimpleResult("SELECT name FROM client WHERE id='23'");
 
 **selectMultipleResults**
 
-Obtiene los campos solicitados de todas las filas en una sentencia envueltos en un array asociativo.
+Gets the requested fields from all the rows in a statement wrapped in an associative array.
 
 ```php
 /**
@@ -114,36 +88,152 @@ $result = selectMultipleResult("SELECT name FROM client WHERE id>10");
 */
 ```
 
+**execSql**
 
+Execute an INSERT or UPDATE statement passing the statement as a parameter
 
+```php
+/**
+* Execute a INSERT/UPDATE sentence.
+* @param $sql INSERT/UPDATE sentence
+* @return if was executed.
+*/    
+function execSql($sql){
 
-**Parameters**
-
-The function of the parameters is as follows:
-
-**async:** . boolean. Make the connection synchronously or asynchronously.
-
-**serverMethod:** . String. Method to be called on the server.
-
-**sendData:** . Object. Parameters to be sent to the server.
-
-**callBack:** . Function. Method that will be executed when the response from the server arrives.
-
-**onTimeoutCall:** . Function. Method to be executed if the server response times out.
-
-**timeout:** . int.  Time in milliseconds that the server will wait for the response. Default is 10000
-
-
-
-## Example
-
-```js
-//Send a POST request to server, calling exampleMethod and showing alert message with response. 
-//If response time expired, will show an alert message with info.
-sendAjaxPost(true,'exampleMethod',{name:'Juan'},function(response){
-  alert('Message from server: '+response);
-},
-function(){
-  alert('Expired waiting time');
-},5000);
+    $pass = false;
+    $con = conectar();    
+    $con->exec($sql);
+    $pass = true;
+    
+    return $pass;
+}
 ```
+
+
+**selectSimple**
+
+Performs a query and returns a class instance that corresponds to the table.
+
+For its use, it is necessary to pass a function as the second parameter that is in charge of converting the associative array that results in the class instance.
+
+An example of the handler would be the following:
+
+```php
+   
+function convertRowToClientClass($r){
+    return new Cliente($r['id'],$r['name'],$r['city']);
+}
+```
+
+The following example uses the method:
+
+```php
+/**
+* Get the first result from SELECT sentence parsing the array result on an instance of class that is needed.
+* @param $sql SELECT sentence
+* @param $handlerFunction function that parse associative array to instace of class that is needed.
+* @return the instace of class.
+*/       
+function selectSimple($sql,$handlerFunction){
+    
+
+    $con = conectar();    
+    $stm = $con->prepare($sql);
+    $stm->execute();
+    $r = $stm->fetch(PDO::FETCH_ASSOC);
+    
+    
+    $objSend = false;
+    if($r && sizeof($r)>0){
+        $objSend = $handlerFunction($r);
+    }
+    
+    return $objSend;
+    
+}
+
+//Example
+selectSimple("SELECT * FROM client WHERE id=456","convertRowToClientClass");
+    //Inspect
+        //Object Client -> {456,"John","Malaga")
+```
+
+**selectMultiple**
+
+Performs a query and returns all results in class instances that correspond to the table.
+
+See the selectSimple method for more details on how it works.
+
+The following example uses the method:
+
+```php
+
+/**
+* Get the all results from SELECT sentence parsing the array of results on instances of class that is needed.
+* @param $sql SELECT sentence
+* @param $handlerFunction function that parse associative array to instace of class that is needed.
+* @param $id Table field that will use the values to index the array
+* @return array with instance of class.
+*/    
+function selectMultiple($sql,$handlerFunction,$index='id'){
+   
+    
+    $con = conectar();    
+    $stm = $con->prepare($sql);
+    $stm->execute();
+    $results = $stm->fetchAll(PDO::FETCH_ASSOC);
+    
+    $arraySend = false;
+    if($results && sizeof($results)>0){
+        $arraySend = array();
+        foreach ($results as $key => $r) {
+            if(!$index){
+                $arraySend[] = $handlerFunction($r);
+            }
+            else{
+                $arraySend[$r[$index]] = $handlerFunction($r);
+            }
+            
+        }
+    }
+    
+    return $arraySend;
+    
+}
+
+//Example
+selectMultiple("SELECT * FROM client","convertRowToClientClass","id");
+    //Inspect
+        //array(
+        //Object Client -> {456,"John","Malaga"),
+        //Object Client -> {456,"Anne","Madrid"),
+        //Object Client -> {456,"Michael","Barcelona"),
+        //);
+```
+
+
+**getStringSelect**
+
+Obtains an SQL statement formed by the fields of the array that is passed as a parameter.
+
+The array must contain two keys: column and table. The use is detailed in code.
+
+```php
+/**
+* Get a String SELECT sentence parsing array with key-value
+* @param $arrayAttr array with 'column' to contents fields to retrive and 'table' to know where search.
+* @return the SELECT sentence.
+*/       
+function getStringSelect($arrayAttr){
+    return "SELECT ".$arrayAttr['column']." FROM ".$arrayAttr['table']." ";
+}
+
+
+//Example
+$param = array('column'=>array('name','city'),'table'=>'client');
+$result = getStringSelect($param);
+/*Inspect 
+  // SELECT name,city FROM client;
+*/
+```
+
