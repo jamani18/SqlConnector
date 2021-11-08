@@ -20,7 +20,7 @@ require_once 'SqlConnector.php';
 
 Only need a PHP server with version 7 minimum.
 
-## Puesta en marcha
+## Start up
 
 Open the SqlConnector.php file and modify the values of the connection data to the database so that it connects.
 
